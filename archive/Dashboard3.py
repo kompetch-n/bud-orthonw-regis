@@ -82,41 +82,6 @@ def count_multi_select(series):
     return result
 
 
-def count_join_dates(series):
-
-    values = []
-
-    for item in series.dropna():
-
-        text = str(item)
-
-        # แยกด้วย comma
-        for value in text.split(","):
-
-            value = value.strip()
-
-            if value:
-                values.append(value)
-
-    if not values:
-
-        return pd.DataFrame(
-            columns=["วันที่", "จำนวน"]
-        )
-
-    result = (
-        pd.Series(values)
-        .value_counts()
-        .reset_index()
-    )
-
-    result.columns = [
-        "วันที่",
-        "จำนวน"
-    ]
-
-    return result
-
 # ======================================
 # DATA
 # ======================================
@@ -128,30 +93,6 @@ st.title("📊 Registration Dashboard")
 if df.empty:
     st.warning("ไม่พบข้อมูล")
     st.stop()
-    
-def split_multi_values(series):
-
-    values = []
-
-    for item in series.dropna():
-
-        for value in str(item).split(","):
-
-            value = value.strip()
-
-            if value:
-                values.append(value)
-
-    return values
-
-
-def get_multi_select_options(series):
-
-    values = split_multi_values(series)
-
-    return sorted(
-        list(set(values))
-    )
 
 # ======================================
 # SIDEBAR FILTER
@@ -167,16 +108,14 @@ gender_filter = st.sidebar.multiselect(
 
 group_filter = st.sidebar.multiselect(
     "กลุ่มผู้เข้าร่วม",
-    get_multi_select_options(
-        df["กลุ่มผู้เข้าร่วม"]
-    )
+    sorted(df["กลุ่มผู้เข้าร่วม"].dropna().unique())
+    if "กลุ่มผู้เข้าร่วม" in df.columns else []
 )
 
 date_filter = st.sidebar.multiselect(
     "วันที่เข้าร่วม",
-    get_multi_select_options(
-        df["วันที่เข้าร่วม"]
-    )
+    sorted(df["วันที่เข้าร่วม"].dropna().unique())
+    if "วันที่เข้าร่วม" in df.columns else []
 )
 
 keyword = st.sidebar.text_input(
@@ -193,46 +132,18 @@ if gender_filter:
     ]
 
 if group_filter:
-
-    mask = pd.Series(
-        False,
-        index=filtered_df.index
-    )
-
-    for value in group_filter:
-
-        mask |= (
-            filtered_df["กลุ่มผู้เข้าร่วม"]
-            .astype(str)
-            .str.contains(
-                value,
-                regex=False,
-                na=False
-            )
+    filtered_df = filtered_df[
+        filtered_df["กลุ่มผู้เข้าร่วม"].isin(
+            group_filter
         )
-
-    filtered_df = filtered_df[mask]
+    ]
 
 if date_filter:
-
-    mask = pd.Series(
-        False,
-        index=filtered_df.index
-    )
-
-    for value in date_filter:
-
-        mask |= (
-            filtered_df["วันที่เข้าร่วม"]
-            .astype(str)
-            .str.contains(
-                value,
-                regex=False,
-                na=False
-            )
+    filtered_df = filtered_df[
+        filtered_df["วันที่เข้าร่วม"].isin(
+            date_filter
         )
-
-    filtered_df = filtered_df[mask]
+    ]
 
 if keyword:
 
@@ -292,26 +203,6 @@ if "เพศ" in filtered_df.columns:
             .str.contains("หญิง", na=False)
         ]
     )
-    
-    unknown = len(
-        filtered_df[
-            (
-                filtered_df["เพศ"].isna()
-            )
-            |
-            (
-                filtered_df["เพศ"]
-                .astype(str)
-                .str.strip()
-                .isin([
-                    "",
-                    "None",
-                    "N/A",
-                    "nan"
-                ])
-            )
-        ]
-    )
 
 pdpa = 0
 
@@ -324,7 +215,7 @@ if "PDPA Consent" in filtered_df.columns:
         ]
     )
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4 = st.columns(4)
 
 c1.metric(
     "ผู้ลงทะเบียน",
@@ -342,67 +233,25 @@ c3.metric(
 )
 
 c4.metric(
-    "ไม่ระบุเพศ",
-    f"{unknown:,}"
-)
-
-c5.metric(
     "PDPA",
     f"{pdpa:,}"
 )
 
 st.divider()
 
-st.subheader("📋 คุณภาพข้อมูล")
-
-dq1, dq2, dq3 = st.columns(3)
-
-dq1.metric(
-    "ไม่ระบุเพศ",
-    f"{unknown:,}"
-)
-
-dq2.metric(
-    "ไม่มีเบอร์โทร",
-    len(
-        filtered_df[
-            filtered_df["เบอร์โทรศัพท์"]
-            .isna()
-        ]
-    )
-)
-
-dq3.metric(
-    "ไม่มีอีเมล",
-    len(
-        filtered_df[
-            filtered_df["อีเมล"]
-            .isna()
-        ]
-    )
-)
-
 # ======================================
 # ROW 1
 # ======================================
 
-col1, col2 = st.columns([1, 2])
+col1, col2, col3 = st.columns(3)
 
 with col1:
 
     if "เพศ" in filtered_df.columns:
 
-        gender_df = filtered_df.copy()
-
-        gender_df["เพศ"] = (
-            gender_df["เพศ"]
-            .fillna("ไม่ระบุ")
-            .replace("", "ไม่ระบุ")
-        )
-
         gender_df = (
-            gender_df["เพศ"]
-            .value_counts(dropna=False)
+            filtered_df["เพศ"]
+            .value_counts()
             .reset_index()
         )
 
@@ -471,61 +320,54 @@ with col2:
             use_container_width=True
         )
 
-# ======================================
-# กลุ่มผู้เข้าร่วม
-# ======================================
+with col3:
 
-if "กลุ่มผู้เข้าร่วม" in filtered_df.columns:
+    if "กลุ่มผู้เข้าร่วม" in filtered_df.columns:
 
-    st.subheader("👥 กลุ่มผู้เข้าร่วม")
+        group_df = (
+            filtered_df["กลุ่มผู้เข้าร่วม"]
+            .value_counts()
+            .reset_index()
+        )
 
-    group_df = count_multi_select(
-        filtered_df["กลุ่มผู้เข้าร่วม"]
-    )
+        group_df.columns = [
+            "กลุ่ม",
+            "จำนวน"
+        ]
 
-    group_df.columns = [
-        "กลุ่ม",
-        "จำนวน"
-    ]
+        fig = px.pie(
+            group_df,
+            names="กลุ่ม",
+            values="จำนวน",
+            hole=0.5,
+            title="กลุ่มผู้เข้าร่วม"
+        )
 
-    group_df = group_df.sort_values(
-        "จำนวน",
-        ascending=True
-    )
-
-    fig = px.bar(
-        group_df,
-        x="จำนวน",
-        y="กลุ่ม",
-        orientation="h",
-        text="จำนวน",
-        title="จำนวนผู้เข้าร่วมตามกลุ่ม"
-    )
-
-    fig.update_layout(
-        height=450,
-        yaxis_title="",
-        xaxis_title="จำนวน"
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
 # ======================================
 # ROW 2
 # ======================================
 
-col1, col2 = st.columns(2)
+col1, col2 = st.columns([1,2])
 
 with col1:
 
     if "วันที่เข้าร่วม" in filtered_df.columns:
 
-        join_df = count_join_dates(
+        join_df = (
             filtered_df["วันที่เข้าร่วม"]
+            .value_counts()
+            .reset_index()
         )
+
+        join_df.columns = [
+            "วันที่",
+            "จำนวน"
+        ]
 
         fig = px.bar(
             join_df,
