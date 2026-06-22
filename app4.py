@@ -45,24 +45,6 @@ def load_data():
     finally:
         client.close()
 
-def get_latest_submission_id(df, form_title):
-
-    data = df[df["form_title"] == form_title].copy()
-
-    if data.empty:
-        return "-"
-
-    data["running"] = (
-        data["submission_id"]
-        .astype(str)
-        .str.extract(r"(\d+)$")[0]
-        .astype(int)
-    )
-
-    latest = data.loc[data["running"].idxmax(), "submission_id"]
-
-    return latest
-
 
 # ======================================
 # MULTI SELECT COUNT
@@ -141,16 +123,6 @@ def count_join_dates(series):
 
 df = load_data()
 
-latest_web = get_latest_submission_id(
-    df,
-    "Orthopedic Knowledge Week"
-)
-
-latest_other = get_latest_submission_id(
-    df,
-    "other"
-)
-
 st.title("📊 Registration Dashboard")
 
 if df.empty:
@@ -187,15 +159,6 @@ def get_multi_select_options(series):
 
 st.sidebar.header("🔍 Filters")
 
-source_filter = st.sidebar.selectbox(
-    "แหล่งที่มาของข้อมูล",
-    [
-        "ทั้งหมด",
-        "กรอกผ่านเว็บไซต์",
-        "นำเข้าจากภายนอก"
-    ]
-)
-
 gender_filter = st.sidebar.multiselect(
     "เพศ",
     sorted(df["เพศ"].dropna().unique())
@@ -221,22 +184,6 @@ keyword = st.sidebar.text_input(
 )
 
 filtered_df = df.copy()
-
-# ======================================
-# SOURCE FILTER
-# ======================================
-
-if "form_title" in filtered_df.columns:
-
-    if source_filter == "กรอกผ่านเว็บไซต์":
-        filtered_df = filtered_df[
-            filtered_df["form_title"] == "Orthopedic Knowledge Week"
-        ]
-
-    elif source_filter == "นำเข้าจากภายนอก":
-        filtered_df = filtered_df[
-            filtered_df["form_title"] == "other"
-        ]
 
 if gender_filter:
     filtered_df = filtered_df[
@@ -325,39 +272,25 @@ if keyword:
 
 total = len(filtered_df)
 
-hospital_count = len(
-    filtered_df[
-        filtered_df["form_title"] == "Orthopedic Knowledge Week"
-    ]
-)
-
-import_count = len(
-    filtered_df[
-        filtered_df["form_title"] == "other"
-    ]
-)
-
 male = 0
 female = 0
 
 if "เพศ" in filtered_df.columns:
 
-    male = (
-        filtered_df["เพศ"]
-        .astype(str)
-        .str.strip()
-        .str.lower()
-        .eq("male")
-        .sum()
+    male = len(
+        filtered_df[
+            filtered_df["เพศ"]
+            .astype(str)
+            .str.contains("ชาย", na=False)
+        ]
     )
 
-    female = (
-        filtered_df["เพศ"]
-        .astype(str)
-        .str.strip()
-        .str.lower()
-        .eq("female")
-        .sum()
+    female = len(
+        filtered_df[
+            filtered_df["เพศ"]
+            .astype(str)
+            .str.contains("หญิง", na=False)
+        ]
     )
     
     unknown = len(
@@ -384,28 +317,38 @@ pdpa = 0
 
 if "PDPA Consent" in filtered_df.columns:
 
-    pdpa = (
-        filtered_df["PDPA Consent"]
-        .astype(str)
-        .str.strip()
-        .eq("1")
-        .sum()
+    pdpa = len(
+        filtered_df[
+            filtered_df["PDPA Consent"]
+            .notna()
+        ]
     )
 
-c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+c1, c2, c3, c4, c5 = st.columns(5)
 
-c1.metric("ผู้ลงทะเบียน", total)
-c2.metric("กรอกผ่านเว็บไซต์", hospital_count)
-c3.metric("นำเข้าจากภายนอก", import_count)
-c4.metric("เพศชาย", male)
-c5.metric("เพศหญิง", female)
-c6.metric("ไม่ระบุเพศ", unknown)
-c7.metric("PDPA", pdpa)
+c1.metric(
+    "ผู้ลงทะเบียน",
+    f"{total:,}"
+)
 
-latest1, latest2 = st.columns(2)
+c2.metric(
+    "เพศชาย",
+    f"{male:,}"
+)
 
-st.caption(
-    f"Submission ล่าสุด | เว็บไซต์: **{latest_web}** | Import: **{latest_other}**"
+c3.metric(
+    "เพศหญิง",
+    f"{female:,}"
+)
+
+c4.metric(
+    "ไม่ระบุเพศ",
+    f"{unknown:,}"
+)
+
+c5.metric(
+    "PDPA",
+    f"{pdpa:,}"
 )
 
 st.divider()
